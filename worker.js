@@ -184,7 +184,7 @@ export default {
       return new Response("ID shown");
     }
 
-    // TeraBox or /reel handler
+    // Reel handler
     const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
     if (!isTeraUrl) return new Response("Ignored");
 
@@ -204,7 +204,7 @@ export default {
     try {
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
       const videoUrl = json.download_url;
-      const name = json.name;
+      const name = json.name || "Reel";
       const sizeBytes = parseInt(json.size || "0");
       const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
 
@@ -213,13 +213,8 @@ export default {
         return new Response("No video");
       }
 
-      const result = await sendVideo(botToken, chatId, videoUrl);
-      if (!result.ok) {
-        await sendMessage(botToken, chatId,
-          `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${videoUrl}">Click here to download</a>`,
-          "HTML"
-        );
-      }
+      const msg = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${videoUrl}">Click here to download</a>`;
+      await sendMessage(botToken, chatId, msg, "HTML");
     } catch (err) {
       await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
       console.error(err);
@@ -235,18 +230,6 @@ async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode })
-  }).then(r => r.json());
-}
-
-async function sendVideo(botToken, chatId, videoUrl) {
-  return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      video: videoUrl,
-      caption: "🎬 Here's your Instagram reel!"
-    })
   }).then(r => r.json());
 }
 
