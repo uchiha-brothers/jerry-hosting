@@ -105,4 +105,6 @@ async function deleteMessage(botToken, chatId, messageId) {
   await fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, messa
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+  });
+}
