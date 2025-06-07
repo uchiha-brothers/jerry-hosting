@@ -1,0 +1,17 @@
+name = "jerryphphosting"
+type = "javascript"
+account_id = "574f06d98127b4c90aae909014cc758d"
+main = "worker.js"
+compatibility_date = "2025-06-03"
+
+[[kv_namespaces]]
+binding = "DISABLE_BOTS_KV"
+id = "a02cfcca3dea4a4cbf79eaa7a9cd278c"
+
+[[kv_namespaces]]
+binding = "DEPLOYE_BOTS_KV"
+id = "1eb6a8f528884b27a9deed5ad52abbeb"
+
+[[kv_namespaces]]
+binding = "USER_KV"
+id = "1493c28ea1aa4f1aadeace577f5aa156"
