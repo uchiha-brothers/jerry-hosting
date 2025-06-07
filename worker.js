@@ -213,21 +213,21 @@ export default {
 
       const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}s\n\n⚠️ <i>This link will expire after one use.</i>`;
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: caption,
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "📥 Download", url: videoUrl },
-              { text: "🎬 Play in Browser (Full-Screen)", url: `https://jerryapi.vercel.app/?url=${encodeURIComponent(videoUrl)}` }
-            ]]
-          }
-        })
-      });
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    chat_id: chatId,
+    text: caption,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://jerryapi.vercel.app/?url=${videoUrl}` }],
+        [{ text: "📥 Download", url: videoUrl }]
+      ]
+    }
+  })
+});
 
     } catch (err) {
       await sendMessage(botToken, chatId, "❌ Error downloading the video.");
