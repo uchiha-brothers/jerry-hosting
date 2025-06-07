@@ -1,5 +1,5 @@
 const MASTER_BOT_TOKEN = "7470975644:AAFHIIItLD6BnXnNZ2Co07Ge2ShPCKS1Mls";
-const MASTER_BOT_USERNAME = "moonrobot";
+const MASTER_BOT_USERNAME = "moorobot";
 const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
