@@ -53,7 +53,7 @@ async function handleMessage(message) {
 
     // Check if download_url is present
     if (!teraboxJson || !teraboxJson.download_url) {
-      throw new Error("Terabox API did not return a download URL");
+      throw new Error("Terabox API did not returnu a download URL");
     }
     teraboxDownloadUrl = teraboxJson.download_url;
     videoName = teraboxJson.name || "video.mp4";
