@@ -1,5 +1,5 @@
 const MASTER_BOT_TOKEN = "7470975644:AAFHIIItLD6BnXnNZ2Co07Ge2ShPCKS1Mls";
-const MASTER_BOT_USERNAME = "hostingphprobot";
+const MASTER_BOT_USERNAME = "phprobot";
 const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
@@ -19,15 +19,13 @@ export default {
     const isMaster = botToken === MASTER_BOT_TOKEN;
     const isAdmin = String(chatId) === MASTER_ADMIN_ID;
 
-    // Check if bot is disabled
     if (await env.DISABLE_BOTS_KV.get(botToken)) {
       return new Response("This bot is disabled.");
     }
 
-    // Track user
     await env.USER_KV.put(`user-${chatId}`, "1");
 
-    // /deletebot (master only)
+    // Handle /deletebot
     if (isMaster && text.startsWith("/deletebot")) {
       const tokenToDelete = text.split(" ")[1]?.trim();
       if (!tokenToDelete) {
@@ -57,7 +55,7 @@ export default {
       return new Response("Bot disabled");
     }
 
-    // /stats (master only)
+    // /stats
     if (isMaster && text === "/stats") {
       const listUsers = await env.USER_KV.list();
       const listBots = await env.DEPLOYE_BOTS_KV.list();
@@ -74,7 +72,7 @@ export default {
       return new Response("Stats shown");
     }
 
-    // /botlist (admin only)
+    // /botlist
     if (isMaster && isAdmin && text === "/botlist") {
       const all = await env.DEPLOYE_BOTS_KV.list();
       const grouped = {};
@@ -88,14 +86,10 @@ export default {
 
         const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
         const username = botInfo.ok ? botInfo.result.username : "(unknown)";
-        grouped[creatorId].push({
-          username,
-          token: key.name
-        });
+        grouped[creatorId].push({ username, token: key.name });
       }
 
       let output = "<b>🤖 All Deployed Bots:</b>\n\n";
-
       for (const creator in grouped) {
         const userInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creator}`).then(r => r.json());
         const userTag = userInfo.ok ? `@${userInfo.result.username || "(no username)"}` : "(unknown user)";
@@ -109,7 +103,7 @@ export default {
       return new Response("Bot list shown");
     }
 
-    // /newbot (master only)
+    // /newbot
     if (isMaster && text.startsWith("/newbot")) {
       const newToken = text.split(" ")[1]?.trim();
       if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
@@ -190,7 +184,7 @@ export default {
       return new Response("ID shown");
     }
 
-    // TeraBox handler (replacing instagram reel)Add commentMore actions
+    // TeraBox or /reel handler
     const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
     if (!isTeraUrl) return new Response("Ignored");
 
@@ -219,7 +213,13 @@ export default {
         return new Response("No video");
       }
 
-      await sendVideo(botToken, chatId, videoUrl);
+      const result = await sendVideo(botToken, chatId, videoUrl);
+      if (!result.ok) {
+        await sendMessage(botToken, chatId,
+          `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${videoUrl}">Click here to download</a>`,
+          "HTML"
+        );
+      }
     } catch (err) {
       await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
       console.error(err);
