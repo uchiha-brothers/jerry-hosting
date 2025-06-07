@@ -12,19 +12,16 @@ export default {
     const message = update.message || update.edited_message;
     const text = message?.text || "";
     const chatId = message?.chat?.id;
-
+    
     if (!chatId || !text) return new Response("No message");
 
     const botToken = url.searchParams.get("token") || MASTER_BOT_TOKEN;
     const isMaster = botToken === MASTER_BOT_TOKEN;
     const isAdmin = String(chatId) === MASTER_ADMIN_ID;
 
-    if (await env.DISABLE_BOTS_KV.get(botToken)) {
-      return new Response("This bot is disabled.");
-    }
-
+    if (await env.DISABLE_BOTS_KV.get(botToken)) return new Response("This bot is disabled.");
     await env.USER_KV.put(`user-${chatId}`, "1");
-
+    
     // Handle /deletebot
     if (isMaster && text.startsWith("/deletebot")) {
       const tokenToDelete = text.split(" ")[1]?.trim();
@@ -184,7 +181,7 @@ export default {
       return new Response("ID shown");
     }
 
-    // Reel handler
+    // Reel/Terabox handler
     const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
     if (!isTeraUrl) return new Response("Ignored");
 
@@ -207,14 +204,31 @@ export default {
       const name = json.name || "Reel";
       const sizeBytes = parseInt(json.size || "0");
       const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
+      const estimatedSeconds = Math.max(2, Math.round(sizeBytes / (4 * 1024 * 1024)));
 
       if (!videoUrl) {
         await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
         return new Response("No video");
       }
 
-      const msg = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`;
-      await sendMessage(botToken, chatId, msg, "HTML");
+      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}s\n\n⚠️ <i>This link will expire after one use.</i>`;
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: caption,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "📥 Download", url: videoUrl },
+              { text: "🎬 Play in Browser (Full-Screen)", url: `https://jerryapi.vercel.app/?url=${encodeURIComponent(videoUrl)}` }
+            ]]
+          }
+        })
+      });
+
     } catch (err) {
       await sendMessage(botToken, chatId, "❌ Error downloading the video.");
       console.error(err);
