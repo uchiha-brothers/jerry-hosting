@@ -25,9 +25,21 @@ export default {
 
     await env.USER_KV.put(`user-${chatId}`, "1");
 
-    // ... (unchanged admin commands and /start, /help, /id, etc.)
+    if (text === "/start") {
+      await sendMessage(botToken, chatId, `👋 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href=\"https://t.me/${MASTER_BOT_USERNAME}\">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      return new Response("Start handled");
+    }
 
-    // TeraBox or /reel handler
+    if (text === "/help") {
+      await sendMessage(botToken, chatId, `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href=\"https://t.me/${MASTER_BOT_USERNAME}\">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      return new Response("Help shown");
+    }
+
+    if (text === "/id") {
+      await sendMessage(botToken, chatId, `🆔 <b>Your Chat ID:</b> <code>${chatId}</code>`, "HTML");
+      return new Response("ID shown");
+    }
+
     const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
     if (!isTeraUrl) return new Response("Ignored");
 
@@ -56,23 +68,20 @@ export default {
         return new Response("No video");
       }
 
-      const blob = await fetch(videoUrl).then(res => res.blob());
-      const form = new FormData();
-      form.append("file", blob, name || "video.mp4");
-
-      const uploadRes = await fetch("https://file.io/?expires=1d", {
-        method: "POST",
-        body: form
-      }).then(r => r.json());
-
-      if (uploadRes.success) {
-        const fileioUrl = uploadRes.link;
-        await sendMessage(botToken, chatId, `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${fileioUrl}">Click here to download</a>`, "HTML");
-      } else {
-        await sendMessage(botToken, chatId, `❌ Failed to upload to file.io.`);
+      const gofileUpload = await uploadToGofile(videoUrl, name);
+      if (gofileUpload.status !== "ok") {
+        await sendMessage(botToken, chatId, "❌ Failed to upload the video to Gofile.io.");
+        return new Response("Gofile upload failed");
       }
+
+      const directLink = gofileUpload.data.downloadPage;
+
+      await sendMessage(botToken, chatId,
+        `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href=\"${directLink}\">Click here to download</a>`,
+        "HTML"
+      );
     } catch (err) {
-      await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
+      await sendMessage(botToken, chatId, "❌ Error processing the reel.");
       console.error(err);
     }
 
@@ -89,22 +98,26 @@ async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
   }).then(r => r.json());
 }
 
-async function sendVideo(botToken, chatId, videoUrl) {
-  return await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      video: videoUrl,
-      caption: "🎬 Here's your Instagram reel!"
-    })
-  }).then(r => r.json());
-}
-
 async function deleteMessage(botToken, chatId, messageId) {
   await fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId })
   });
+}
+
+async function uploadToGofile(videoUrl, filename) {
+  const serverRes = await fetch("https://api.gofile.io/getServer").then(r => r.json());
+  const server = serverRes.data.server;
+  const videoBlob = await fetch(videoUrl).then(r => r.blob());
+
+  const formData = new FormData();
+  formData.append("file", videoBlob, filename);
+
+  const uploadRes = await fetch(`https://${server}.gofile.io/uploadFile`, {
+    method: "POST",
+    body: formData
+  }).then(r => r.json());
+
+  return uploadRes;
 }
