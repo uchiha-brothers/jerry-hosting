@@ -208,7 +208,7 @@ export default {
     const msgId = statusMsg.result?.message_id;
 
     try {
-      const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());Add commentMore actions
+      const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
       const videoUrl = json.download_url;
       const name = json.name;
       const sizeBytes = parseInt(json.size || "0");
