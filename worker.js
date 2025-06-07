@@ -257,7 +257,3 @@ async function deleteMessage(botToken, chatId, messageId) {
     body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
   });
 }
-;
-}
-  });
-}
