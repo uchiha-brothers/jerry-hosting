@@ -20,12 +20,12 @@ export default {
     const isAdmin = String(chatId) === MASTER_ADMIN_ID;
 
     // Check if bot is disabled
-    if (await env.DISABLED_BOTS_KV.get(botToken)) {
+    if (await env.DISABLE_BOTS_KV.get(botToken)) {
       return new Response("This bot is disabled.");
     }
 
     // Track user
-    await env.USERS_KV.put(`user-${chatId}`, "1");
+    await env.USER_KV.put(`user-${chatId}`, "1");
 
     // /deletebot (master only)
     if (isMaster && text.startsWith("/deletebot")) {
@@ -39,7 +39,7 @@ export default {
         return new Response("Attempt to disable master bot");
       }
 
-      const deployed = await env.DEPLOYED_BOTS_KV.get(tokenToDelete);
+      const deployed = await env.DEPLOYE_BOTS_KV.get(tokenToDelete);
       if (!deployed) {
         await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
         return new Response("Unknown token");
@@ -47,8 +47,8 @@ export default {
 
       const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, { method: "POST" }).then(r => r.json());
       if (deleteRes.ok) {
-        await env.DISABLED_BOTS_KV.put(tokenToDelete, "1");
-        await env.DEPLOYED_BOTS_KV.delete(tokenToDelete);
+        await env.DISABLE_BOTS_KV.put(tokenToDelete, "1");
+        await env.DEPLOYE_BOTS_KV.delete(tokenToDelete);
         await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
       } else {
         await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
@@ -59,9 +59,9 @@ export default {
 
     // /stats (master only)
     if (isMaster && text === "/stats") {
-      const listUsers = await env.USERS_KV.list();
-      const listBots = await env.DEPLOYED_BOTS_KV.list();
-      const listDisabled = await env.DISABLED_BOTS_KV.list();
+      const listUsers = await env.USER_KV.list();
+      const listBots = await env.DEPLOYE_BOTS_KV.list();
+      const listDisabled = await env.DISABLE_BOTS_KV.list();
 
       const statsMsg =
         `<b>📊 Stats:</b>\n` +
@@ -76,11 +76,11 @@ export default {
 
     // /botlist (admin only)
     if (isMaster && isAdmin && text === "/botlist") {
-      const all = await env.DEPLOYED_BOTS_KV.list();
+      const all = await env.DEPLOYE_BOTS_KV.list();
       const grouped = {};
 
       for (const key of all.keys) {
-        const value = await env.DEPLOYED_BOTS_KV.get(key.name);
+        const value = await env.DEPLOYE_BOTS_KV.get(key.name);
         if (!value?.startsWith("creator:")) continue;
 
         const creatorId = value.split(":")[1];
@@ -124,8 +124,8 @@ export default {
       const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
 
       if (setWebhook.ok) {
-        await env.DEPLOYED_BOTS_KV.put(newToken, `creator:${chatId}`);
-        await env.DISABLED_BOTS_KV.delete(newToken);
+        await env.DEPLOYE_BOTS_KV.put(newToken, `creator:${chatId}`);
+        await env.DISABLE_BOTS_KV.delete(newToken);
 
         const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
         const newBotUsername = botInfo.ok ? botInfo.result.username : null;
@@ -150,11 +150,11 @@ export default {
 
     // /mybots
     if (isMaster && text === "/mybots") {
-      const allBots = await env.DEPLOYED_BOTS_KV.list();
+      const allBots = await env.DEPLOYE_BOTS_KV.list();
       const myBots = [];
 
       for (const entry of allBots.keys) {
-        const val = await env.DEPLOYED_BOTS_KV.get(entry.name);
+        const val = await env.DEPLOYE_BOTS_KV.get(entry.name);
         if (val === `creator:${chatId}`) {
           const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
           const username = botInfo.ok ? botInfo.result.username : null;
@@ -255,5 +255,9 @@ async function deleteMessage(botToken, chatId, messageId) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
+  });
+}
+;
+}
   });
 }
