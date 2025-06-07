@@ -1,6 +1,6 @@
 const MASTER_BOT_TOKEN = "7470975644:AAFHIIItLD6BnXnNZ2Co07Ge2ShPCKS1Mls";
 const MASTER_BOT_USERNAME = "hostingphprobot";
-const TERA_API = "https://terabox-pika.vercel.app/?url=";
+const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 export default {
@@ -168,13 +168,13 @@ export default {
 
     // /start
     if (text === "/start") {
-      await sendMessage(botToken, chatId, `👋 <b>Welcome!</b>\n\n🤖 This bot allows you to download Instagram Reels easily by sending the link.\n\n📥 Just send a <i>reel URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      await sendMessage(botToken, chatId, `👋 <b>Welcome!</b>\n\n🤖 This bot allows you to download Terabx Video easily by sending the link.\n\n📥 Just send a <i>Terabx Video URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
       return new Response("Start handled");
     }
 
     // /help
     if (text === "/help") {
-      await sendMessage(botToken, chatId, `❓ <b>How to use this bot:</b>\n\n• Send any <i>Instagram reel URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
+      await sendMessage(botToken, chatId, `❓ <b>How to use this bot:</b>\n\n• Send any <i>Terabx Video URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
       return new Response("Help shown");
     }
 
@@ -194,18 +194,19 @@ export default {
     }
 
     if (!fileUrl.startsWith("http")) {
-      await sendMessage(botToken, chatId, "❌ Invalid Instagram URL.");
+      await sendMessage(botToken, chatId, "❌ Invalid Terabx URL.");
       return new Response("Invalid URL");
     }
 
-    const statusMsg = await sendMessage(botToken, chatId, "📥 Downloading Instagram reel...");
+    const statusMsg = await sendMessage(botToken, chatId, "📥 Downloading Terbx Video...");
     const msgId = statusMsg.result?.message_id;
 
     try {
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
-      const videoUrl = json.direct_link;
-      const name = json.file_name || "TeraBox Video";
-      const sizeMB = json.size || "Unknown";
+      const videoUrl = json.download_url;Add commentMore actions
+      const name = json.name || "Reel";
+      const sizeBytes = parseInt(json.size || "0");
+      const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
 
       if (!videoUrl) {
         await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
