@@ -1,6 +1,6 @@
 const MASTER_BOT_TOKEN = "8139678579:AAEc338z-0Gt45ZPsf35DJSCbaKm8JLvju4";
 const MASTER_BOT_USERNAME = "hostingphprobot";
-const INSTAGRAM_API = "https://jerrycoder.oggyapi.workers.dev/insta?url=";
+const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 export default {
@@ -190,16 +190,16 @@ export default {
       return new Response("ID shown");
     }
 
-    // Reel handler
-    const isInstaUrl = text.includes("instagram.com/reel/") || text.startsWith("/reel");
-    if (!isInstaUrl) return new Response("Ignored");
+    // TeraBox handler (replacing instagram reel)Add commentMore actions
+    const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
+    if (!isTeraUrl) return new Response("Ignored");
 
-    let reelUrl = text;
+    let fileUrl = text;
     if (text.startsWith("/reel")) {
-      reelUrl = text.split(" ").slice(1).join(" ").trim();
+      fileUrl = text.split(" ").slice(1).join(" ").trim();
     }
 
-    if (!reelUrl.startsWith("http")) {
+    if (!fileUrl.startsWith("http")) {
       await sendMessage(botToken, chatId, "❌ Invalid Instagram URL.");
       return new Response("Invalid URL");
     }
