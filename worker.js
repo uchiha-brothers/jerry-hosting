@@ -1,6 +1,6 @@
 const MASTER_BOT_TOKEN = "7470975644:AAFHIIItLD6BnXnNZ2Co07Ge2ShPCKS1Mls";
 const MASTER_BOT_USERNAME = "hostingphprobot";
-const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
+const TERA_API = "https://terabox-pika.vercel.app/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 export default {
@@ -203,20 +203,19 @@ export default {
 
     try {
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
-      const videoUrl = json.download_url;
-      const name = json.name || "Reel";
-      const sizeBytes = parseInt(json.size || "0");
-      const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
+      const videoUrl = json.direct_link;
+      const name = json.file_name || "TeraBox Video";
+      const sizeMB = json.size || "Unknown";
 
       if (!videoUrl) {
         await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
         return new Response("No video");
       }
 
-      const msg = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${videoUrl}">Click here to download</a>`;
+      const msg = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`;
       await sendMessage(botToken, chatId, msg, "HTML");
     } catch (err) {
-      await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
+      await sendMessage(botToken, chatId, "❌ Error downloading the video.");
       console.error(err);
     }
 
