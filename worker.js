@@ -1,5 +1,5 @@
 const MASTER_BOT_TOKEN = "7470975644:AAFHIIItLD6BnXnNZ2Co07Ge2ShPCKS1Mls";
-const MASTER_BOT_USERNAME = "moorobot";
+const MASTER_BOT_USERNAME = "hostingphprobot";
 const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
@@ -202,70 +202,33 @@ export default {
     const msgId = statusMsg.result?.message_id;
 
     try {
-      // Fetch info from TeraBox API
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
       const videoUrl = json.download_url;
-      const name = json.name || "video.mp4";
+      const name = json.name;
       const sizeBytes = parseInt(json.size || "0");
       const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
 
       if (!videoUrl) {
         await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
-        if (msgId) await deleteMessage(botToken, chatId, msgId);
         return new Response("No video");
       }
 
-      // Download the video file as arrayBuffer
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) throw new Error("Failed to download video file");
-      const videoBuffer = await videoResponse.arrayBuffer();
-
-      // Upload to gofile.io
-      const gofileLink = await uploadToGofile(videoBuffer, name);
-
-      // Try sending video from gofile.io direct link
-      const sendResult = await sendVideo(botToken, chatId, gofileLink);
-
-      if (!sendResult.ok) {
-        // fallback: send link message if sending video fails
+      const result = await sendVideo(botToken, chatId, videoUrl);
+      if (!result.ok) {
         await sendMessage(botToken, chatId,
-          `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${gofileLink}">Download your video here</a>`,
+          `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n\n🔗 <a href="${videoUrl}">Click here to download</a>`,
           "HTML"
         );
       }
-
     } catch (err) {
-      await sendMessage(botToken, chatId, "❌ Error downloading or uploading the reel.");
-      console.error("Error:", err);
+      await sendMessage(botToken, chatId, "❌ Error downloading the reel.");
+      console.error(err);
     }
 
     if (msgId) await deleteMessage(botToken, chatId, msgId);
     return new Response("OK");
   }
 };
-
-// Upload video buffer to gofile.io
-async function uploadToGofile(fileBuffer, fileName) {
-  // Get server URL for upload
-  const serverRes = await fetch("https://api.gofile.io/getServer").then(r => r.json());
-  if (!serverRes.status || !serverRes.data.server) throw new Error("Failed to get gofile server");
-
-  const uploadUrl = `https://${serverRes.data.server}.gofile.io/uploadFile`;
-
-  // Prepare FormData
-  const formData = new FormData();
-  formData.append("file", new Blob([fileBuffer]), fileName);
-
-  // Upload file
-  const uploadRes = await fetch(uploadUrl, {
-    method: "POST",
-    body: formData
-  }).then(r => r.json());
-
-  if (uploadRes.status !== "ok") throw new Error("Gofile upload failed: " + uploadRes.message);
-
-  return uploadRes.data.downloadPage; // link to download page
-}
 
 async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
   return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
