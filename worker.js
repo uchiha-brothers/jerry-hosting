@@ -203,7 +203,7 @@ export default {
 
     try {
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
-      const videoUrl = json.download_url;Add commentMore actions
+      const videoUrl = json.download_url;
       const name = json.name || "Reel";
       const sizeBytes = parseInt(json.size || "0");
       const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
