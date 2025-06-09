@@ -211,7 +211,7 @@ export default {
         return new Response("No video");
       }
 
-      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}s\n\n⚠️ <i>This link will expire after one use.</i>`;
+      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`;
 
   await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
   method: "POST",
@@ -222,7 +222,7 @@ export default {
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://teraboxvideodl.pages.dev/player?video=${videoUrl}` }],
+        [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://jerryapi.vercel.app/?url=${videoUrl}` }],
         [{ text: "📥 Download", url: videoUrl }]
       ]
     }
