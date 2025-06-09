@@ -222,7 +222,7 @@ export default {
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
-        [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://teraboxvideodl.pages.dev/player?url=${videoUrl}` }],
+        [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://teraboxvideodl.pages.dev/player?video=${videoUrl}` }],
         [{ text: "📥 Download", url: videoUrl }]
       ]
     }
