@@ -198,28 +198,41 @@ export default {
         return new Response("No video");
       }
 
-      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`;
+      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n⚠️ <i>This link will expire after one use.</i>`;
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const sendVideoRes = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: caption,
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "▶️ Play Browser Server 1", url: `https://www.teraboxfast.com/p/playserver2.html?q=${encodeURIComponent(fileUrl)}` }],
-              [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://jerrystream.vercel.app/?video=${videoUrl}` }],
-              [{ text: "📥 Download", url: videoUrl }]
-            ]
-          }
+          video: videoUrl,
+          caption,
+          parse_mode: "HTML"
         })
-      });
+      }).then(r => r.json());
 
+      if (!sendVideoRes.ok) {
+        // fallback if video sending fails
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`,
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "▶️ Play Browser Server 1", url: `https://www.teraboxfast.com/p/playserver2.html?q=${encodeURIComponent(fileUrl)}` }],
+                [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://jerrystream.vercel.app/?video=${videoUrl}` }],
+                [{ text: "📥 Download", url: videoUrl }]
+              ]
+            }
+          })
+        });
+      }
     } catch (err) {
-      await sendMessage(botToken, chatId, "❌ Error downloading the video.");
-      console.error(err);
+      await sendMessage(botToken, chatId, "❌ Error downloading or sending the video.");
+      console.error("Video send failed:", err);
     }
 
     if (msgId) await deleteMessage(botToken, chatId, msgId);
