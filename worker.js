@@ -4,13 +4,12 @@ const TERA_API = "https://teraboxvideodl.pages.dev/api/?url=";
 const MASTER_ADMIN_ID = "7485643534";
 
 export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
+  async fetch(request, env) {
     if (request.method !== "POST") return new Response("Only POST allowed");
-
+    const url = new URL(request.url);
     const update = await request.json();
     const message = update.message || update.edited_message;
-    const text = message?.text || "";
+    const text = message?.text?.trim() || "";
     const chatId = message?.chat?.id;
 
     if (!chatId || !text) return new Response("No message");
@@ -19,239 +18,182 @@ export default {
     const isMaster = botToken === MASTER_BOT_TOKEN;
     const isAdmin = String(chatId) === MASTER_ADMIN_ID;
 
-    if (await env.DISABLE_BOTS_KV.get(botToken)) return new Response("This bot is disabled.");
-    await env.USER_KV.put(`user-${chatId}`, "1");
+    // Prevent disabled bots from working
+    if (await env.DISABLE_BOTS_KV.get(botToken)) return new Response("Bot disabled");
 
+    // Register user
+    env.USER_KV.put(`user-${chatId}`, "1").catch(() => {});
+
+    // ========== ADMIN COMMANDS ========== //
     if (isMaster && text.startsWith("/deletebot")) {
       const tokenToDelete = text.split(" ")[1]?.trim();
-      if (!tokenToDelete) {
-        await sendMessage(botToken, chatId, "❌ Please provide a bot token to delete.");
-        return new Response("No token to delete");
-      }
-      if (tokenToDelete === MASTER_BOT_TOKEN) {
-        await sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
-        return new Response("Attempt to disable master bot");
-      }
+      if (!tokenToDelete) return sendMessage(botToken, chatId, "❌ Please provide a bot token to delete.");
+
+      if (tokenToDelete === MASTER_BOT_TOKEN)
+        return sendMessage(botToken, chatId, "❌ You cannot disable the master bot.");
 
       const deployed = await env.DEPLOYE_BOTS_KV.get(tokenToDelete);
-      if (!deployed) {
-        await sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
-        return new Response("Unknown token");
-      }
+      if (!deployed) return sendMessage(botToken, chatId, "❌ Bot token not found or not deployed.");
 
-      const deleteRes = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, { method: "POST" }).then(r => r.json());
-      if (deleteRes.ok) {
+      const res = await fetch(`https://api.telegram.org/bot${tokenToDelete}/deleteWebhook`, { method: "POST" }).then(r => r.json());
+      if (res.ok) {
         await env.DISABLE_BOTS_KV.put(tokenToDelete, "1");
         await env.DEPLOYE_BOTS_KV.delete(tokenToDelete);
-        await sendMessage(botToken, chatId, `🗑️ Bot with token <code>${tokenToDelete}</code> has been disabled and webhook removed.`, "HTML");
+        return sendMessage(botToken, chatId, `🗑️ Bot <code>${tokenToDelete}</code> disabled.`, "HTML");
       } else {
-        await sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${deleteRes.description}`);
+        return sendMessage(botToken, chatId, `❌ Failed to delete webhook:\n${res.description}`);
       }
-
-      return new Response("Bot disabled");
     }
 
     if (isMaster && text === "/stats") {
-      const listUsers = await env.USER_KV.list();
-      const listBots = await env.DEPLOYE_BOTS_KV.list();
-      const listDisabled = await env.DISABLE_BOTS_KV.list();
+      const [users, bots, disabled] = await Promise.all([
+        env.USER_KV.list(),
+        env.DEPLOYE_BOTS_KV.list(),
+        env.DISABLE_BOTS_KV.list(),
+      ]);
 
-      const statsMsg =
-        `<b>📊 Stats:</b>\n` +
-        `• Total unique users: <code>${listUsers.keys.length}</code>\n` +
-        `• Total bots deployed: <code>${listBots.keys.length + listDisabled.keys.length}</code>\n` +
-        `• Active bots: <code>${listBots.keys.length}</code>\n` +
-        `• Disabled bots: <code>${listDisabled.keys.length}</code>`;
-
-      await sendMessage(botToken, chatId, statsMsg, "HTML");
-      return new Response("Stats shown");
+      return sendMessage(botToken, chatId,
+        `<b>📊 Stats:</b>\n• Users: <code>${users.keys.length}</code>\n• Bots: <code>${bots.keys.length + disabled.keys.length}</code>\n• Active: <code>${bots.keys.length}</code>\n• Disabled: <code>${disabled.keys.length}</code>`, "HTML"
+      );
     }
 
     if (isMaster && isAdmin && text === "/botlist") {
       const all = await env.DEPLOYE_BOTS_KV.list();
       const grouped = {};
 
-      for (const key of all.keys) {
-        const value = await env.DEPLOYE_BOTS_KV.get(key.name);
-        if (!value?.startsWith("creator:")) continue;
+      const fetchBots = all.keys.map(async key => {
+        const val = await env.DEPLOYE_BOTS_KV.get(key.name);
+        if (!val?.startsWith("creator:")) return;
 
-        const creatorId = value.split(":")[1];
+        const creatorId = val.split(":")[1];
         if (!grouped[creatorId]) grouped[creatorId] = [];
 
-        const botInfo = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json());
-        const username = botInfo.ok ? botInfo.result.username : "(unknown)";
-        grouped[creatorId].push({ username, token: key.name });
-      }
+        const info = await fetch(`https://api.telegram.org/bot${key.name}/getMe`).then(r => r.json()).catch(() => null);
+        grouped[creatorId].push({ username: info?.ok ? info.result.username : "(unknown)", token: key.name });
+      });
+      await Promise.all(fetchBots);
 
       let output = "<b>🤖 All Deployed Bots:</b>\n\n";
       for (const creator in grouped) {
-        const userInfo = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creator}`).then(r => r.json());
-        const userTag = userInfo.ok ? `@${userInfo.result.username || "(no username)"}` : "(unknown user)";
-        output += `${creator} (${userTag}):\n\n`;
+        const info = await fetch(`https://api.telegram.org/bot${MASTER_BOT_TOKEN}/getChat?chat_id=${creator}`).then(r => r.json()).catch(() => null);
+        const userTag = info?.ok ? `@${info.result.username || "(no username)"}` : "(unknown user)";
+        output += `${creator} (${userTag}):\n`;
         for (const bot of grouped[creator]) {
-          output += `• @${bot.username}\n<code>${bot.token}</code>\n\n`;
+          output += `• @${bot.username}\n<code>${bot.token}</code>\n`;
         }
+        output += "\n";
       }
-
-      await sendMessage(botToken, chatId, output.trim(), "HTML");
-      return new Response("Bot list shown");
+      return sendMessage(botToken, chatId, output.trim(), "HTML");
     }
 
     if (isMaster && text.startsWith("/newbot")) {
       const newToken = text.split(" ")[1]?.trim();
-      if (!newToken || !newToken.match(/^\d+:[\w-]{30,}$/)) {
-        await sendMessage(botToken, chatId, "❌ Invalid bot token.");
-        return new Response("Invalid token");
-      }
+      if (!newToken?.match(/^\d+:[\w-]{30,}$/))
+        return sendMessage(botToken, chatId, "❌ Invalid bot token.");
 
-      const cloningMsg = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
-      const cloningMsgId = cloningMsg.result?.message_id;
-
+      const loading = await sendMessage(botToken, chatId, "🛠️ Cloning bot...");
       const webhookUrl = `https://${url.hostname}/?token=${newToken}`;
       const setWebhook = await fetch(`https://api.telegram.org/bot${newToken}/setWebhook?url=${webhookUrl}`).then(r => r.json());
+
+      if (loading?.result?.message_id) deleteMessage(botToken, chatId, loading.result.message_id).catch(() => {});
 
       if (setWebhook.ok) {
         await env.DEPLOYE_BOTS_KV.put(newToken, `creator:${chatId}`);
         await env.DISABLE_BOTS_KV.delete(newToken);
 
-        const botInfo = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
-        const newBotUsername = botInfo.ok ? botInfo.result.username : null;
-
-        if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
-
-        const replyMessage =
-          `✅ <b>New bot deployed!</b>\n\n` +
-          `All features cloned! Here is bot ${newBotUsername ? `(@${newBotUsername})` : "(username not found)"}\n\n` +
-          `🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`;
-
-        await sendMessage(botToken, chatId, replyMessage, "HTML");
+        const info = await fetch(`https://api.telegram.org/bot${newToken}/getMe`).then(r => r.json());
+        return sendMessage(botToken, chatId,
+          `✅ <b>New bot deployed!</b>\n\n@${info?.result?.username || "(username not found)"}\n\n🔐 <b>Bot Token:</b>\n<code>${newToken}</code>`, "HTML"
+        );
       } else {
-        if (cloningMsgId) await deleteMessage(botToken, chatId, cloningMsgId);
-        await sendMessage(botToken, chatId, `❌ Failed to set webhook.\n${setWebhook.description}`);
+        return sendMessage(botToken, chatId, `❌ Webhook failed.\n${setWebhook.description}`);
       }
-
-      return new Response("Cloning done");
     }
 
     if (isMaster && text === "/mybots") {
-      const allBots = await env.DEPLOYE_BOTS_KV.list();
-      const myBots = [];
-
-      for (const entry of allBots.keys) {
-        const val = await env.DEPLOYE_BOTS_KV.get(entry.name);
+      const all = await env.DEPLOYE_BOTS_KV.list();
+      const bots = all.keys.filter(k => k.name).map(async k => {
+        const val = await env.DEPLOYE_BOTS_KV.get(k.name);
         if (val === `creator:${chatId}`) {
-          const botInfo = await fetch(`https://api.telegram.org/bot${entry.name}/getMe`).then(r => r.json());
-          const username = botInfo.ok ? botInfo.result.username : null;
-          myBots.push(`• ${username ? `@${username}` : "(unknown username)"}\n<code>${entry.name}</code>`);
+          const info = await fetch(`https://api.telegram.org/bot${k.name}/getMe`).then(r => r.json()).catch(() => null);
+          return `• @${info?.result?.username || "unknown"}\n<code>${k.name}</code>`;
         }
-      }
+      });
+      const results = (await Promise.all(bots)).filter(Boolean);
 
-      const msg = myBots.length === 0
-        ? "🤖 You haven't deployed any bots yet."
-        : `<b>🤖 Your Bots:</b>\n\n` + myBots.join("\n\n");
-
-      await sendMessage(botToken, chatId, msg, "HTML");
-      return new Response("Mybots listed");
+      return sendMessage(botToken, chatId,
+        results.length ? `<b>🤖 Your Bots:</b>\n\n${results.join("\n\n")}` : "🤖 You haven't deployed any bots yet.", "HTML"
+      );
     }
 
     if (text === "/start") {
-      await sendMessage(botToken, chatId, `👋 <b>Welcome!</b>\n\n🤖 This bot allows you to download Terabx Video easily by sending the link.\n\n📥 Just send a <i>Terabx Video URL</i> or use the <code>/reel &lt;url&gt;</code> command.\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
-      return new Response("Start handled");
+      return sendMessage(botToken, chatId,
+        `👋 <b>Welcome!</b>\n\nSend a Terabox link or use <code>/reel &lt;url&gt;</code>\n\n🚀 Powered by <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
     }
 
     if (text === "/help") {
-      await sendMessage(botToken, chatId, `❓ <b>How to use this bot:</b>\n\n• Send any <i>Terabx Video URL</i>\n• Or use <code>/reel &lt;url&gt;</code>\n• The bot will fetch and send you the video\n\n🔧 For support or updates, visit <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
-      return new Response("Help shown");
+      return sendMessage(botToken, chatId,
+        `❓ <b>How to use:</b>\n\n• Send a Terabox link\n• Or use <code>/reel &lt;url&gt;</code>\n• Bot replies with download link\n\n🔧 Help: <a href="https://t.me/${MASTER_BOT_USERNAME}">@${MASTER_BOT_USERNAME}</a>`, "HTML");
     }
 
     if (text === "/id") {
-      await sendMessage(botToken, chatId, `🆔 <b>Your Chat ID:</b> <code>${chatId}</code>`, "HTML");
-      return new Response("ID shown");
+      return sendMessage(botToken, chatId, `🆔 <b>Your Chat ID:</b> <code>${chatId}</code>`, "HTML");
     }
 
+    // ========== TERA LINK HANDLER ========== //
     const isTeraUrl = text.includes("https://") || text.startsWith("/reel");
-    if (!isTeraUrl) return new Response("Ignored");
+    if (!isTeraUrl) return new Response("Not Tera URL");
 
-    let fileUrl = text;
-    if (text.startsWith("/reel")) {
-      fileUrl = text.split(" ").slice(1).join(" ").trim();
-    }
+    let fileUrl = text.startsWith("/reel") ? text.split(" ").slice(1).join(" ").trim() : text;
+    if (!fileUrl.startsWith("http")) return sendMessage(botToken, chatId, "❌ Invalid URL");
 
-    if (!fileUrl.startsWith("http")) {
-      await sendMessage(botToken, chatId, "❌ Invalid Terabx URL.");
-      return new Response("Invalid URL");
-    }
-
-    const statusMsg = await sendMessage(botToken, chatId, "📥 Downloading Terbx Video...");
-    const msgId = statusMsg.result?.message_id;
+    const statusMsg = await sendMessage(botToken, chatId, "📥 Downloading...");
+    const msgId = statusMsg?.result?.message_id;
 
     try {
       const json = await fetch(TERA_API + encodeURIComponent(fileUrl)).then(r => r.json());
-      const videoUrl = json.download_url;
-      const name = json.name || "Reel";
-      const sizeBytes = parseInt(json.size || "0");
-      const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
-      const estimatedSeconds = Math.max(2, Math.round(sizeBytes / (4 * 1024 * 1024)));
+      if (!json?.download_url) return sendMessage(botToken, chatId, "❌ Failed to fetch video.");
 
-      if (!videoUrl) {
-        await sendMessage(botToken, chatId, "❌ Failed to fetch the video.");
-        return new Response("No video");
-      }
-
-      const caption = `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n⚠️ <i>This link will expire after one use.</i>`;
-
-      const sendVideoRes = await fetch(`https://api.telegram.org/bot${botToken}/sendVideo`, {
+      const caption = `🎬 <b>${json.name || "Video"}</b>\n📦 Size: ${(parseInt(json.size || 0) / 1048576).toFixed(2)} MB\n\n🔗 <a href="${json.download_url}">Click to Download</a>\n⚠️ <i>This link expires after one use.</i>`;
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          video: videoUrl,
-          caption,
-          parse_mode: "HTML"
+          text: caption,
+          parse_mode: "HTML",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "▶️ Play Server 1", url: `https://www.teraboxfast.com/p/playserver2.html?q=${encodeURIComponent(fileUrl)}` }],
+              [{ text: "🎬 Full-Screen", url: `https://jerrystream.vercel.app/?video=${json.download_url}` }],
+              [{ text: "📥 Download", url: json.download_url }]
+            ]
+          }
         })
-      }).then(r => r.json());
-
-      if (!sendVideoRes.ok) {
-        // fallback if video sending fails
-        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: `🎬 <b>${name}</b>\n📦 Size: ${sizeMB} MB\n⏱️ Estimated time: ${estimatedSeconds}\n\n🔗 <a href="${videoUrl}">Click here to download</a>\n\n⚠️ <i>This link will expire after one use.</i>`,
-            parse_mode: "HTML",
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "▶️ Play Browser Server 1", url: `https://www.teraboxfast.com/p/playserver2.html?q=${encodeURIComponent(fileUrl)}` }],
-                [{ text: "🎬 Play in Browser (Full-Screen)", url: `https://jerrystream.vercel.app/?video=${videoUrl}` }],
-                [{ text: "📥 Download", url: videoUrl }]
-              ]
-            }
-          })
-        });
-      }
+      });
     } catch (err) {
-      await sendMessage(botToken, chatId, "❌ Error downloading or sending the video.");
-      console.error("Video send failed:", err);
+      console.error("Error fetching TeraBox:", err);
+      await sendMessage(botToken, chatId, "❌ Error fetching video.");
     }
 
-    if (msgId) await deleteMessage(botToken, chatId, msgId);
+    if (msgId) deleteMessage(botToken, chatId, msgId).catch(() => {});
     return new Response("OK");
   }
 };
 
-async function sendMessage(botToken, chatId, text, parse_mode = "HTML") {
-  return await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+// Utility functions
+async function sendMessage(token, chatId, text, mode = "HTML") {
+  return await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode })
-  }).then(r => r.json());
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: mode }),
+  }).then(r => r.json()).catch(() => null);
 }
 
-async function deleteMessage(botToken, chatId, messageId) {
-  await fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
+async function deleteMessage(token, chatId, msgId) {
+  await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, message_id: messageId }),
-  });
+    body: JSON.stringify({ chat_id: chatId, message_id: msgId }),
+  }).catch(() => {});
 }
